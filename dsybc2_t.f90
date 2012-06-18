@@ -1,23 +1,24 @@
 program dsybc2_t
 ! unit test program for dsybc2
 !
-use ifport
-use ifcore
+!use ifport
+!use ifcore
+use ftchol
 implicit none
 
-integer           dlen_, m , n, mxllda, mxlocc, mb, nb
-parameter         ( dlen_ = 9, m = 6, n = 6, mb = 3, nb = 3)
+integer            m , n, mxllda, mxlocc, mb, nb
+parameter         (  m = 6, n = 6, mb = 3, nb = 3)
 parameter         ( mxllda = 3, mxlocc = 3 )
 
-double precision  one
-parameter         ( one = 1.0d+0 )
+!double precision  one
+!parameter         ( one = 1.0d+0 )
 
 
 integer           ictxt, info, mycol, myrow, npcol, nprow
-integer           desca( dlen_ ), descar( dlen_ ), descac( dlen_ )
+integer           desca( dlen_ )
 
-double precision  A( mxllda, mxlocc ), chkvec(mb)
-double precision, pointer :: ac(:,:), ar(:,:)
+double precision  A( mxllda, mxlocc )
+!double precision, allocatable :: ac(:,:), ar(:,:)
 
 integer           i, j, dbg
 
@@ -39,10 +40,10 @@ A = A + 10 * myrow + mycol
 if ( myrow == 0 .and. mycol == 0 ) print *, '===== Matrix A =====' 
 call pmat(A, desca)
 
-do i=1, mb
-   chkvec(i) = real(i, kind(one))
-end do
-call dsybc2('L', A, desca, ar, descar, ac, descac, chkvec, nb, info)
+!do i=1, mb
+   !chkvec(i) = real(i, kind(one))
+!end do
+call dsybc2('L', A, desca,  nb, info)
 
 
 if ( myrow == 0 .and. mycol == 0 ) print *, '==== Matrix AR ===='
@@ -60,7 +61,7 @@ contains
    ! print a small matrix on screen
    ! n < 10
    subroutine pmat(A, dA) 
-      use ifcore
+      !use ifcore
       implicit none
       integer m_, n_, mb_, nb_, lld_, dlen_, ctxt_, rsrc_, csrc_
       parameter ( ctxt_ = 2, rsrc_ = 7, csrc_ = 8 )
@@ -77,7 +78,7 @@ contains
       call blacs_gridinfo( dA(ctxt_), nprow, npcol, myrow, mycol )
       m = numroc( dA(m_), dA(mb_), myrow, dA(rsrc_), nprow )
       n = numroc( dA(n_), dA(nb_), mycol, dA(csrc_), npcol )
-      write (editdesc, '(A, I1, A)') '(', n, 'F7.3)'
+      write (editdesc, '(A, I1, A)') '(', n, 'F8.3)'
 
       do ii = 0, nprow-1
          do jj = 0, npcol-1
@@ -88,7 +89,7 @@ contains
                   print editdesc, A(i,1:n)
                end do
                !call flush(6)
-               res = commitqq(6)
+               !res = commitqq(6)
             end if
             call blacs_barrier( dA( ctxt_ ), 'A')
          end do

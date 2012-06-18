@@ -1,4 +1,6 @@
       SUBROUTINE FT_PDPOTRF( UPLO, N, A, IA, JA, DESCA, INFO ) 
+      USE FTCHOL
+      IMPLICIT NONE
 !                                                                       
 !  -- ScaLAPACK routine (version 1.7) --                                
 !     University of Tennessee, Knoxville, Oak Ridge National Laboratory,
@@ -167,8 +169,6 @@
 
 !     ..
 !     .. FT variables ..
-      DOUBLE PRECISION, POINTER :: AC(:, :), AR(:, :), CHKVEC( DESCA( MB_ ) )
-      INTEGER           DAC( DLEN_ ), DAR( DLEN_ ) 
 !
 !     ..                                                                
 !     .. Executable Statements ..                                       
@@ -221,8 +221,8 @@
 !                                                                       
 !     Build the checksum matrices for A into AC and AR
 !
-      CALL RANDOM_NUMBER( CHKVEC )
-      CHKVEC = CHKVEC / SUM( CHKVEC )
+      !CALL RANDOM_NUMBER( CHKVEC )
+      !CHKVEC = CHKVEC / SUM( CHKVEC )
 !SUBROUTINE DSYBC2(UPLO, A, DESCA, AR, DESCAR, AC, DESCAC, CHKVEC, NB, INFO)
       CALL DSYBC2(UPLO, A, DESCA, AR, DAR, AC, DAC, CHKVEC, DESCA( MB_ ), INFO )
       CALL PB_TOPGET( ICTXT, 'Broadcast', 'Rowwise', ROWBTOP ) 
@@ -314,7 +314,7 @@
          CALL PDPOTF2( UPLO, JB, A, IA, JA, DESCA, INFO ) 
          IF( INFO.NE.0 )                                                &
      &      GO TO 30                                                    
-         CALL CHK1( UPLO, JB, A, IA, JA, DA, AR, DAR, AC, DAC, INFO )
+         CALL CHK1( UPLO, JB, A, IA, JA, DA, INFO )
 !                                                                       
          IF( JB+1.LE.N ) THEN 
 !                                                                       
@@ -371,66 +371,6 @@
 !                                                                       
 !     End of PDPOTRF                                                    
 !                                                                       
-CONTAINS
-SUBROUTINE CHK1( UPLO, A, IA, JA, DA, AR, DAR, AC, DAC, CHKVEC)
-! Check after PDPOTF2 procedure
-IMPLICIT NONE
-CHARACTER      UPLO
-INTEGER        N, IA, JA
-INTEGER            BLOCK_CYCLIC_2D, CSRC_, CTXT_, DLEN_, DTYPE_,  &
-   &                   LLD_, MB_, M_, NB_, N_, RSRC_                  
-PARAMETER          ( BLOCK_CYCLIC_2D = 1, DLEN_ = 9, DTYPE_ = 1,  &
-   &                     CTXT_ = 2, M_ = 3, N_ = 4, MB_ = 5, NB_ = 6, &
-   &                     RSRC_ = 7, CSRC_ = 8, LLD_ = 9 )             
-DOUBLE PRECISION  A( DA( LLD_ ), * ), AR( DAR( LLD_ ), * ), AC( DAC( LLD_ ), * )
-DOUBLE PRECISION  CHKVEC( DA( MB_ ) )
-INTEGER        DA( DLEN_ ), DAR( DLEN_ ), DAC( DLEN_ )
-
-INTEGER        MYROW, MYCOL, NPROW, NPCOL, IPROC, JPROC
-INTEGER        I, J, MB, NB, II, JJ
-DOUBLE PRECISION  ZERO
-PARAMETER         ( ZERO = 0.0D+0 )
-LOGICAL        UPPER, LSAME
-INTEGER        ICEIL
-EXTERNAL       ICEIL, LSAME
-DOUBLE PRECISION  WORK( DA( MB_ ) )
-
-MB = DA( MB_ )
-NB = DA( NB_ )
-
-! check if the requested submatrix is within one block
-IF ( IA+NB-1.GT.DA( M_ ) .OR. JA+NB-1.GT.DA( N_ ) )
-   PRINT *, 'CHK1: exceeds boundary'
-   RETURN
-END IF
-IF ( MOD( IA-1, MB ).NE.0 .OR. MOD( JA-1, NB ).NE.0 ) THEN
-   PRINT *, 'CHK1: IA, JA not aligned'
-   RETURN
-END IF
-
-CALL BLACS_GRIDINFO( DA( CTXT_ ), NPROW, NPCOL, MYROW, MYCOL ) 
-CALL INFOG2L( IA, JA, DA, NPROW, NPCOL, MYROW, MYCOL &
-           & I, J, IPROC, JPROC )
-
-UPPER = LSAME( UPLO, 'U' )
-IF ( UPPER ) THEN
-ELSE
-   IF ( MYROW.EQ.IPROC .AND. MYCOL.EQ.JPROC ) THEN
-      !DO II = I, I+NB-1
-         !DO JJ = J, J+II-I
-      DO JJ = J, J+NB-1
-         !DO II = I+JJ-J, I+NB-1
-         AR( I/NB*2 + 1, JJ ) = SUM( A(I+JJ-J:I+NB-1, JJ) )
-         AR( I/NB*2 + 2, JJ ) = DOT_PRODUCT( A(I+JJ-J:I+NB-1, JJ), &
-            CHKVEC(JJ-J+1:NB) )
-      END DO
-      AC( I:I+NB-1, J/NB*2+1:J/NB*2+2 ) = ZERO
-   END IF
-END IF
-
-
-END SUBROUTINE CHK1
-
 
 
 
