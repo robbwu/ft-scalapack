@@ -137,13 +137,13 @@
 !  =====================================================================
 !                                                                       
 !     .. Parameters ..                                                  
-      INTEGER            BLOCK_CYCLIC_2D, CSRC_, CTXT_, DLEN_, DTYPE_,  &
-     &                   LLD_, MB_, M_, NB_, N_, RSRC_                  
-      PARAMETER          ( BLOCK_CYCLIC_2D = 1, DLEN_ = 9, DTYPE_ = 1,  &
-     &                     CTXT_ = 2, M_ = 3, N_ = 4, MB_ = 5, NB_ = 6, &
-     &                     RSRC_ = 7, CSRC_ = 8, LLD_ = 9 )             
-      DOUBLE PRECISION   ONE 
-      PARAMETER          ( ONE = 1.0D+0 ) 
+      !INTEGER            BLOCK_CYCLIC_2D, CSRC_, CTXT_, DLEN_, DTYPE_,  &
+     !&                   LLD_, MB_, M_, NB_, N_, RSRC_                  
+      !PARAMETER          ( BLOCK_CYCLIC_2D = 1, DLEN_ = 9, DTYPE_ = 1,  &
+     !&                     CTXT_ = 2, M_ = 3, N_ = 4, MB_ = 5, NB_ = 6, &
+     !&                     RSRC_ = 7, CSRC_ = 8, LLD_ = 9 )             
+      !DOUBLE PRECISION   ONE 
+      !PARAMETER          ( ONE = 1.0D+0 ) 
 !     ..                                                                
 !     .. Local Scalars ..                                               
       LOGICAL            UPPER 
@@ -223,8 +223,9 @@
 !
       !CALL RANDOM_NUMBER( CHKVEC )
       !CHKVEC = CHKVEC / SUM( CHKVEC )
-!SUBROUTINE DSYBC2(UPLO, A, DESCA, AR, DESCAR, AC, DESCAC, CHKVEC, NB, INFO)
-      CALL DSYBC2(UPLO, A, DESCA, AR, DAR, AC, DAC, CHKVEC, DESCA( MB_ ), INFO )
+!SUBROUTINE DSYBC2(UPLO, A, DESCA,  NB, INFO)
+      CALL DSYBC2(UPLO, A, DESCA, DESCA( MB_ ), INFO)
+      !CALL DSYBC2(UPLO, A, DESCA, AR, DESCAR, AC, DESCAC, CHKVEC, DESCA( MB_ ), INFO )
       CALL PB_TOPGET( ICTXT, 'Broadcast', 'Rowwise', ROWBTOP ) 
       CALL PB_TOPGET( ICTXT, 'Broadcast', 'Columnwise', COLBTOP ) 
 !                                                                       
@@ -314,7 +315,8 @@
          CALL PDPOTF2( UPLO, JB, A, IA, JA, DESCA, INFO ) 
          IF( INFO.NE.0 )                                                &
      &      GO TO 30                                                    
-         CALL CHK1( UPLO, JB, A, IA, JA, DA, INFO )
+!SUBROUTINE CHK1( UPLO, A, IA, JA, DA,  INFO)
+         CALL CHK1( UPLO,  A, IA, JA, DESCA, INFO )
 !                                                                       
          IF( JB+1.LE.N ) THEN 
 !                                                                       
@@ -323,11 +325,14 @@
             CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',        &
      &                   N-JB, JB, ONE, A, IA, JA, DESCA, A, IA+JB, JA, &
      &                   DESCA )                                        
+            CALL CHK2(UPLO, N-JB, JB,  A, IA, JA, DESCA, INFO)
 !                                                                       
 !           Update the trailing matrix, A = A - L*L'                    
 !                                                                       
             CALL PDSYRK( UPLO, 'No Transpose', N-JB, JB, -ONE, A, IA+JB,&
      &                   JA, DESCA, ONE, A, IA+JB, JA+JB, DESCA )       
+            CALL CHK3(UPLO, N-JB,  A, IA, JA, DESCA, INFO)
+         
 !                                                                       
          END IF 
 !                                                                       
