@@ -50,28 +50,39 @@ JB = NB
 !                                                                       
 !        Perform unblocked Cholesky factorization on JB block           
 !                                                                       
-CALL PDPOTF2( UPLO, NB, A, IA, JA, DA, INFO ) 
+DO IA = 1, N, NB
+   JA = IA
+   !PRINT *, IA
+   CALL PDPOTF2( UPLO, NB, A, IA, JA, DA, INFO ) 
+   !CALL pmat2('A', A, DA)
+   IF( INFO.NE.0 )  PRINT *,'PDPOTF2 INFO=', INFO                                              
+   !SUBROUTINE CHK1( UPLO, A, IA, JA, DA,  INFO)
+   CALL CHK1( UPLO,  A, IA, JA, DA, INFO )
+   !CALL pmat2('AR', AR, DESCAR)
+
+   IF ( IA+NB.LE.N ) THEN
+      CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',        &
+      &                   N-NB*(IA/NB+1), JB, ONE, A, IA, JA, DA, A, IA+JB, JA, &
+      &                   DA )                                        
+      CALL CHK2(UPLO, N-JB*(IA/NB+1), JB,  A, IA, JA, DA, INFO)
+      !CALL pmat2('A', A, DA)
+      !CALL pmat2('AR', AR, DESCAR)
+
+      CALL PDSYRK( UPLO, 'No Transpose', N-JB*(IA/NB+1), JB, -ONE, A, IA+JB,&
+      &                   JA, DA, ONE, A, IA+JB, JA+JB, DA )       
+      CALL CHK3(UPLO, N-JB*(IA/NB+1),  A, IA, JA, DA, INFO)
+      IF ( IA.EQ.4 ) THEN
+         !CALL pmat2('A', A, DA)
+         CALL pmat2('AR', AR, DESCAR)
+         CALL pmat2('AC', AC, DESCAC)
+      END IF
+   END IF
+END DO
 !CALL pmat2('A', A, DA)
-IF( INFO.NE.0 )  PRINT *,'PDPOTF2 INFO=', INFO                                              
-!SUBROUTINE CHK1( UPLO, A, IA, JA, DA,  INFO)
-CALL CHK1( UPLO,  A, IA, JA, DA, INFO )
 !CALL pmat2('AR', AR, DESCAR)
+!CALL pmat2('AC', AC, DESCAC)
 
-CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',        &
-&                   N-JB, JB, ONE, A, IA, JA, DA, A, IA+JB, JA, &
-&                   DA )                                        
-CALL CHK2(UPLO, N-JB, JB,  A, IA, JA, DA, INFO)
-!CALL pmat2('A', A, DA)
-!CALL pmat2('AR', AR, DESCAR)
-
-CALL PDSYRK( UPLO, 'No Transpose', N-JB, JB, -ONE, A, IA+JB,&
-&                   JA, DA, ONE, A, IA+JB, JA+JB, DA )       
-CALL CHK3(UPLO, N-JB,  A, IA, JA, DA, INFO)
-!CALL pmat2('A', A, DA)
-CALL pmat2('AR', AR, DESCAR)
-CALL pmat2('AC', AC, DESCAC)
-
-
+CALL DSYDC2
 
 deallocate(A, B)
 

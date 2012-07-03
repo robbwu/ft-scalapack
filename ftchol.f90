@@ -11,6 +11,9 @@ PARAMETER          ( ONE = 1.0D+0, ZERO = 0.0D+0 )
 DOUBLE PRECISION, ALLOCATABLE :: AR(:, :), AC(:, :), CHKVEC(:)
 INTEGER :: DESCAC( DLEN_ ), DESCAR( DLEN_ )
 
+DOUBLE PRECISION, PARAMETER :: EPS = 1.0D-5
+DOUBLE PRECISION, ALLOCATABLE :: ONES(:), WORK1(:), WORK2(:)
+
 CONTAINS 
 subroutine pmat2(name, A, DA)
 implicit none
@@ -54,43 +57,16 @@ end do
 
 end subroutine pmat2
 
-subroutine pmat(name, A, dA) 
-   !use ifcore
-   implicit none
-   character(len=*) name
-   !integer m_, n_, mb_, nb_, lld_, dlen_, ctxt_, rsrc_, csrc_
-   !parameter ( ctxt_ = 2, rsrc_ = 7, csrc_ = 8 )
-   !parameter ( m_ = 3, n_ = 4, mb_ = 5, nb_ = 6, lld_ = 9 , dlen_ = 9 )
+SUBROUTINE DSYDC2
+   IMPLICIT NONE
 
-   integer           m, n, i, dA( dlen_ ), ii,jj
-   double precision  A( dA( lld_ ), * )
-   character(20)     editdesc
-   integer           myrow, mycol, nprow, npcol
-   integer           numroc
-   logical           res
-   external          numroc
-
-   call blacs_gridinfo( dA(ctxt_), nprow, npcol, myrow, mycol )
-   m = numroc( dA(m_), dA(mb_), myrow, dA(rsrc_), nprow )
-   n = numroc( dA(n_), dA(nb_), mycol, dA(csrc_), npcol )
-   write (editdesc, '(A, I1, A)') '(', n, 'F8.3)'
-
-   do ii = 0, nprow-1
-      do jj = 0, npcol-1
-         if ( myrow .eq. ii .and. mycol .eq. jj ) then
-            print '(A, A, I3, I3, A, I3, I3)', name, ' from process ',myrow, mycol, ' dim ',m, n
-            !call flush(6)
-            do i = 1,m
-               print editdesc, A(i,1:n)
-            end do
-            !call flush(6)
-            !res = commitqq(6)
-         end if
-         call flush
-         call blacs_barrier( dA( ctxt_ ), 'A')
-      end do
-   end do
-end subroutine pmat
+   IF (ALLOCATED(AR)) DEALLOCATE(AR)
+   IF (ALLOCATED(AC)) DEALLOCATE(AC)
+   IF (ALLOCATED(CHKVEC)) DEALLOCATE(CHKVEC)
+   IF (ALLOCATED(ONES)) DEALLOCATE(ONES)
+   IF (ALLOCATED(WORK1)) DEALLOCATE(WORK1)
+   IF (ALLOCATED(WORK2)) DEALLOCATE(WORK2)
+END SUBROUTINE DSYDC2
 
 SUBROUTINE DSYBC2(UPLO, A, DESCA,  NB, INFO)
    !USE CHKVAR
@@ -210,7 +186,7 @@ SUBROUTINE DSYBC2(UPLO, A, DESCA,  NB, INFO)
    INTEGER           ICEIL, NUMROC
    EXTERNAL          NUMROC, ICEIL, DGEMV, LSAME
 
-   DOUBLE PRECISION  WORK( NB ), ONES( NB )
+   DOUBLE PRECISION  WORK( NB ) 
    LOGICAL           UPPER
 
    UPPER = LSAME( UPLO, 'U' )
@@ -242,6 +218,14 @@ SUBROUTINE DSYBC2(UPLO, A, DESCA,  NB, INFO)
       END DO
    END IF
    !PRINT *,'CHKVEC:',CHKVEC
+
+   IF (.NOT.ALLOCATED(ONES)) THEN
+      ALLOCATE(ONES(NB))
+      ONES = ONE
+   END IF
+
+   IF (.NOT.ALLOCATED(WORK1)) ALLOCATE(WORK1(NB))
+   IF (.NOT.ALLOCATED(WORK2)) ALLOCATE(WORK2(NB))
 
    IF (ALLOCATED(AR)) DEALLOCATE(AR)
    IF (ALLOCATED(AC)) DEALLOCATE(AC)
@@ -375,10 +359,18 @@ INTEGER  M, N, IA, JA, DESCA(*), INFO
 DOUBLE PRECISION A( DESCA( LLD_ ), * )
 INTEGER  IAR, MAR, JAC
 
-INTEGER NB, I, J, K
+INTEGER NB, I, J, K, IB, JB
 INTEGER NPROW, NPCOL, MYROW, MYCOL, LRIND, LCIND, ROW, COL
+INTEGER IPROC, JPROC, II, JJ, LLDA
+!DOUBLE PRECISION WORK1(DESCA(NB_)), WORK2(DESCA(NB_)), &
+      !ONES(DESCA(NB_))
 
+ONES = ONE
 NB = DESCA(NB_)
+LLDA = DESCA(LLD_)
+IB = NB; JB = NB
+! Fast exit
+IF ( N.LE.0 ) RETURN
 
 
 IF ( MOD( IA-1, DESCA(MB_) ).NE.0 ) THEN 
@@ -407,9 +399,31 @@ CALL PDTRSM('Right', UPLO, 'Transpose', 'Non-Unit', &
       MAR, N, ONE, A, IA, JA, DESCA, AR, IAR, JA, DESCAR)
 
 ! checksum checking phase
-!CALL BLACS_GRIDINFO( DESCA(CTXT_), NPROW, NPCOL, MYROW, MYCOL )
-!DO I=IA+NB:IA+NB+M-1,NB
-   !CALL INFOG2L( I, JA, 
+CALL BLACS_GRIDINFO( DESCA(CTXT_), NPROW, NPCOL, MYROW, MYCOL )
+DO I=IA+NB,IA+NB+M-1,NB
+   !CALL INFOG2L( I, JA, DESCA, NPROW, NPCOL, MYROW, &
+         !MYCOL, LIA, LJA, PROW, PCOL )
+   !LIAR = (LIA/NB)*2+1; LJAC = (LJA/NB)*2+1
+   CALL INFOG2L(I, JA, DESCA, NPROW, NPCOL, MYROW, MYCOL, &
+      II, JJ, IPROC, JPROC)
+   !PRINT *,'PROC', MYROW, MYCOL,'I,J', I, J
+   IF ( MYROW .EQ. IPROC .AND. MYCOL .EQ. JPROC ) THEN
+      !PRINT  '(A, I3, I3, A, I3, I3, A, I3, I3, A, I3, I3)', &
+      !'PROC ', MYROW, MYCOL, 'I, J', I, J, 'II, JJ', II, JJ,  &
+      !'IB, JB', IB, JB
+      CALL DGEMV( 'Trans', IB, JB, ONE, A(II,JJ), LLDA, ONES, 1, ZERO, WORK1, 1 )
+      WORK1(1:JB) = WORK1(1:JB) - AR( II/NB*2 + 1, JJ:JJ+JB-1 ) 
+      CALL DGEMV( 'Trans', IB, JB, ONE, A(II,JJ), LLDA, CHKVEC, 1, ZERO, WORK2, 1 )
+      WORK2(1:JB) = WORK2(1:JB) - AR( II/NB*2 + 2, JJ:JJ+JB-1 ) 
+      IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
+         PRINT *, 'CHK2: checksum check failed.'
+      ELSE
+         PRINT *, 'CHK2, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
+                     MAXVAL(ABS(WORK2))
+      END IF
+
+   END IF
+END DO
 
 
 END SUBROUTINE CHK2
@@ -423,8 +437,13 @@ INTEGER  IAR, MAR, JAC
 
 INTEGER NB
 
+INTEGER NPROW, NPCOL, MYROW, MYCOL, LRIND, LCIND, ROW, COL
+INTEGER IPROC, JPROC, II, JJ, LLDA, K, L, I, J, IB, JB
 NB = DESCA(NB_)
-
+IB = NB; JB = NB
+LLDA = DESCA( LLD_ )
+! Fast exit
+IF ( N.LE.0 ) RETURN
 
 IF ( MOD( IA-1, NB ).NE.0 ) THEN 
    INFO = -5
@@ -454,6 +473,45 @@ CALL PDGEMM('N', 'T', N, MAR,NB, &
    AR, IAR, JA, DESCAR, &
    ONE, AC, IA+NB, JAC, DESCAC)
 
+CALL BLACS_GRIDINFO( DESCA(CTXT_), NPROW, NPCOL, MYROW, MYCOL )
+!DO I=IA+NB,IA+NB+N-1,NB
+DO K=1, N, NB
+   I = IA+NB+K-1
+   DO L=1, K-NB, NB
+      J = JA+NB+L-1
+      CALL INFOG2L(I, J, DESCA, NPROW, NPCOL, MYROW, MYCOL, &
+         II, JJ, IPROC, JPROC)
+      IF ( MYROW .EQ. IPROC .AND. MYCOL .EQ. JPROC ) THEN
+         CALL DGEMV( 'Trans', IB, JB, ONE, A(II,JJ), LLDA, ONES, 1, ZERO, WORK1, 1 )
+         WORK1(1:JB) = WORK1(1:JB) - AR( II/NB*2 + 1, JJ:JJ+JB-1 ) 
+         CALL DGEMV( 'Trans', IB, JB, ONE, A(II,JJ), LLDA, CHKVEC, 1, ZERO, WORK2, 1 )
+         WORK2(1:JB) = WORK2(1:JB) - AR( II/NB*2 + 2, JJ:JJ+JB-1 ) 
+         IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
+            PRINT *, 'CHK3: checksum check failed.'
+         ELSE
+            !PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
+               !MAXVAL(ABS(WORK2))
+            PRINT *, 'CHK3, I, J', I, J, 'PASSED'
+         END IF
+      END IF
+   END DO
+   J = JA+NB+K-1
+   CALL INFOG2L(I, J, DESCA, NPROW, NPCOL, MYROW, MYCOL, &
+      II, JJ, IPROC, JPROC)
+   IF ( MYROW .EQ. IPROC .AND. MYCOL .EQ. JPROC ) THEN
+      CALL DSYMV( UPLO, IB, ONE, A(II,JJ), LLDA, ONES, 1, ZERO, WORK1, 1 )
+      WORK1(1:JB) = WORK1(1:JB) - AR( II/NB*2 + 1, JJ:JJ+JB-1 ) 
+      CALL DSYMV( UPLO, IB, ONE, A(II,JJ), LLDA, CHKVEC, 1, ZERO, WORK2, 1 )
+      WORK2(1:JB) = WORK2(1:JB) - AR( II/NB*2 + 2, JJ:JJ+JB-1 ) 
+      IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
+         PRINT *, 'CHK3: checksum check failed.'
+      ELSE
+         !PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
+            !MAXVAL(ABS(WORK2))
+         PRINT *, 'CHK3, I, J', I, J, 'PASSED'
+      END IF
+   END IF
+END DO
    
 
 END SUBROUTINE CHK3
