@@ -343,6 +343,7 @@
 !           Perform unblocked Cholesky factorization on JB block        
 !                                                                       
             CALL PDPOTF2( UPLO, JB, A, I, J, DESCA, INFO ) 
+            CALL CHK1( UPLO, A, I, J, DESCA, INFO )
             IF( INFO.NE.0 ) THEN 
                INFO = INFO + J - JA 
                GO TO 30 
@@ -355,12 +356,14 @@
                CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',     &
      &                      N-J-JB+JA, JB, ONE, A, I, J, DESCA, A, I+JB,&
      &                      J, DESCA )                                  
+               CALL CHK2( UPLO, N-J-JB+JA, JB, A, I, J, DESCA, INFO)
 !                                                                       
 !              Update the trailing matrix, A = A - L*L'                 
 !                                                                       
                CALL PDSYRK( UPLO, 'No Transpose', N-J-JB+JA, JB, -ONE,  &
      &                      A, I+JB, J, DESCA, ONE, A, I+JB, J+JB,      &
      &                      DESCA )                                     
+               CALL CHK3( UPLO, N-J-JB+JA, A, I, J, DESCA, INFO )
 !                                                                       
             END IF 
    20    CONTINUE 
@@ -371,6 +374,8 @@
 !                                                                       
       CALL PB_TOPSET( ICTXT, 'Broadcast', 'Rowwise', ROWBTOP ) 
       CALL PB_TOPSET( ICTXT, 'Broadcast', 'Columnwise', COLBTOP ) 
+      
+      !CALL DSYDC2
 !                                                                       
       RETURN 
 !                                                                       

@@ -12,8 +12,8 @@ integer ICEIL
 external ICEIL
 
 
-nprow = 2; npcol = 2
-N = 9; NB = 3
+nprow = 7; npcol = 7
+N = 1200; NB = 20 
 maxlld = ICEIL(N/NB, nprow) * NB
 
 
@@ -30,60 +30,73 @@ call PDSYRK('L', 'N', N, N, ONE, B, 1, 1, DB, ZERO, A, 1, 1, DA)
 
 
 
-CALL DSYBC2('L', A, DA, DA( MB_ ), INFO)
-!call pmat2('A', A, DA)
-!call pmat2('AR', AR, DESCAR)
+!CALL DSYBC2('L', A, DA, DA( MB_ ), INFO)
+!!call pmat2('A', A, DA)
+!!call pmat2('AR', AR, DESCAR)
 
-CALL PB_TOPGET( ICTXT, 'Broadcast', 'Rowwise', ROWBTOP ) 
-CALL PB_TOPGET( ICTXT, 'Broadcast', 'Columnwise', COLBTOP ) 
+!CALL PB_TOPGET( ICTXT, 'Broadcast', 'Rowwise', ROWBTOP ) 
+!CALL PB_TOPGET( ICTXT, 'Broadcast', 'Columnwise', COLBTOP ) 
 
 
-CALL PB_TOPSET( ICTXT, 'Broadcast', 'Rowwise', 'S-ring' ) 
-CALL PB_TOPSET( ICTXT, 'Broadcast', 'Columnwise', ' ' ) 
+!CALL PB_TOPSET( ICTXT, 'Broadcast', 'Rowwise', 'S-ring' ) 
+!CALL PB_TOPSET( ICTXT, 'Broadcast', 'Columnwise', ' ' ) 
 
-IA = 1; JA = 1
-UPLO = 'L'
-JB = NB
+!IA = 1; JA = 1
+!UPLO = 'L'
+!JB = NB
 
-!JN = MIN( ICEIL( JA, DESCA( NB_ ) )*DESCA( NB_ ), JA+N-1 ) 
-!JB = JN - JA + 1 
-!                                                                       
-!        Perform unblocked Cholesky factorization on JB block           
-!                                                                       
-DO IA = 1, N, NB
-   JA = IA
-   !PRINT *, IA
-   CALL PDPOTF2( UPLO, NB, A, IA, JA, DA, INFO ) 
-   !CALL pmat2('A', A, DA)
-   IF( INFO.NE.0 )  PRINT *,'PDPOTF2 INFO=', INFO                                              
-   !SUBROUTINE CHK1( UPLO, A, IA, JA, DA,  INFO)
-   CALL CHK1( UPLO,  A, IA, JA, DA, INFO )
-   !CALL pmat2('AR', AR, DESCAR)
+!!JN = MIN( ICEIL( JA, DESCA( NB_ ) )*DESCA( NB_ ), JA+N-1 ) 
+!!JB = JN - JA + 1 
+!!                                                                       
+!!        Perform unblocked Cholesky factorization on JB block           
+!!                                                                       
+!DO IA = 1, N, NB
+   !JA = IA
+   !!PRINT *, IA
+   !CALL PDPOTF2( UPLO, NB, A, IA, JA, DA, INFO ) 
+   !!CALL pmat2('A', A, DA)
+   !IF( INFO.NE.0 )  PRINT *,'PDPOTF2 INFO=', INFO                                              
+   !!SUBROUTINE CHK1( UPLO, A, IA, JA, DA,  INFO)
+   !CALL CHK1( UPLO,  A, IA, JA, DA, INFO )
+   !!CALL pmat2('AR', AR, DESCAR)
 
-   IF ( IA+NB.LE.N ) THEN
-      CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',        &
-      &                   N-NB*(IA/NB+1), JB, ONE, A, IA, JA, DA, A, IA+JB, JA, &
-      &                   DA )                                        
-      CALL CHK2(UPLO, N-JB*(IA/NB+1), JB,  A, IA, JA, DA, INFO)
-      !CALL pmat2('A', A, DA)
-      !CALL pmat2('AR', AR, DESCAR)
+   !IF ( IA+NB.LE.N ) THEN
+      !CALL PDTRSM( 'Right', UPLO, 'Transpose', 'Non-Unit',        &
+      !&                   N-NB*(IA/NB+1), JB, ONE, A, IA, JA, DA, A, IA+JB, JA, &
+      !&                   DA )                                        
+      !CALL CHK2(UPLO, N-JB*(IA/NB+1), JB,  A, IA, JA, DA, INFO)
+      !!CALL pmat2('A', A, DA)
+      !!CALL pmat2('AR', AR, DESCAR)
 
-      CALL PDSYRK( UPLO, 'No Transpose', N-JB*(IA/NB+1), JB, -ONE, A, IA+JB,&
-      &                   JA, DA, ONE, A, IA+JB, JA+JB, DA )       
-      CALL CHK3(UPLO, N-JB*(IA/NB+1),  A, IA, JA, DA, INFO)
-      IF ( IA.EQ.4 ) THEN
-         !CALL pmat2('A', A, DA)
-         CALL pmat2('AR', AR, DESCAR)
-         CALL pmat2('AC', AC, DESCAC)
-      END IF
-   END IF
-END DO
+      !CALL PDSYRK( UPLO, 'No Transpose', N-JB*(IA/NB+1), JB, -ONE, A, IA+JB,&
+      !&                   JA, DA, ONE, A, IA+JB, JA+JB, DA )       
+      !CALL CHK3(UPLO, N-JB*(IA/NB+1),  A, IA, JA, DA, INFO)
+      !IF ( IA.EQ.4 ) THEN
+         !!CALL pmat2('A', A, DA)
+         !CALL pmat2('AR', AR, DESCAR)
+         !CALL pmat2('AC', AC, DESCAC)
+      !END IF
+   !END IF
+!END DO
+!!CALL pmat2('A', A, DA)
+!!CALL pmat2('AR', AR, DESCAR)
+!!CALL pmat2('AC', AC, DESCAC)
+
+!CALL DSYDC2
+
+
+
+! FT_DPOTRF testing
+! =================
+
+!SUBROUTINE FT_PDPOTRF( UPLO, N, A, IA, JA, DESCA, INFO ) 
+CALL FT_PDPOTRF('L', N, A, 1, 1, DA, INFO )
+!PRINT '(9I3)', DESCAR
+!PRINT *, SHAPE(AR)
 !CALL pmat2('A', A, DA)
 !CALL pmat2('AR', AR, DESCAR)
 !CALL pmat2('AC', AC, DESCAC)
-
 CALL DSYDC2
-
 deallocate(A, B)
 
 call blacs_gridexit( ictxt )

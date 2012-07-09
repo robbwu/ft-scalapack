@@ -25,9 +25,12 @@ integer DA( * ), m, n, mb, nb, nprow, npcol,myrow, mycol, &
 double precision A( DA( lld_ ), * )
 
 
+
 m = DA( M_ ); n = DA( N_ ); mb = DA( MB_ ); nb = DA( NB_ )
 
 write (editdesc, '(A, I1, A)') '(', nb, 'F8.3)'
+print *, 'nb', nb
+print *, 'editdesc', editdesc
 
 if ( mod(m, mb) .NE. 0 ) then 
    print *, 'm%mb!=0'
@@ -359,9 +362,10 @@ INTEGER  M, N, IA, JA, DESCA(*), INFO
 DOUBLE PRECISION A( DESCA( LLD_ ), * )
 INTEGER  IAR, MAR, JAC
 
-INTEGER NB, I, J, K, IB, JB
+INTEGER NB, I, J, K, IB, JB, I1, I2, TMP(1)
 INTEGER NPROW, NPCOL, MYROW, MYCOL, LRIND, LCIND, ROW, COL
 INTEGER IPROC, JPROC, II, JJ, LLDA
+DOUBLE PRECISION R
 !DOUBLE PRECISION WORK1(DESCA(NB_)), WORK2(DESCA(NB_)), &
       !ONES(DESCA(NB_))
 
@@ -415,11 +419,31 @@ DO I=IA+NB,IA+NB+M-1,NB
       WORK1(1:JB) = WORK1(1:JB) - AR( II/NB*2 + 1, JJ:JJ+JB-1 ) 
       CALL DGEMV( 'Trans', IB, JB, ONE, A(II,JJ), LLDA, CHKVEC, 1, ZERO, WORK2, 1 )
       WORK2(1:JB) = WORK2(1:JB) - AR( II/NB*2 + 2, JJ:JJ+JB-1 ) 
-      IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
-         PRINT *, 'CHK2: checksum check failed.'
+      IF( ANY(ABS(WORK1).GT.EPS) .OR. ANY(ABS(WORK2).GT.EPS) ) THEN
+         PRINT *, 'CHK2: checksum check failed. Trying to recover...'
+         IF (COUNT(ABS(WORK1).GT.EPS).EQ.1 .AND. COUNT(ABS(WORK2).GT.EPS).EQ.1) THEN
+            TMP = MAXLOC(ABS(WORK1));
+            I1 = TMP(1)
+            TMP = MAXLOC(ABS(WORK2))
+            I2 = TMP(1)
+            IF ( I1.EQ.I2 ) THEN
+               R = WORK2(I1) / WORK1(I1) / CHKVEC(1)
+               IF ( ABS((R-NINT(R)))/R .LE. EPS ) THEN
+                  I2 = NINT(R)
+                  A(II+I2-1, JJ+I1-1) = A(II+I2-1, JJ+I1-1) - WORK1(I1)
+                  PRINT *, 'Recovery successful.'
+               ELSE
+                  PRINT *, 'ERROR: cannot recover, no position found'
+               END IF 
+            ELSE
+               PRINT *, 'EROOR: cannot recover, position mismatch'
+            END IF
+            
+         ELSE
+            PRINT *, 'ERROR: cannot recover, count mismatch'
+         END IF
       ELSE
-         PRINT *, 'CHK2, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
-                     MAXVAL(ABS(WORK2))
+         PRINT *, "CHK2: PASSED"
       END IF
 
    END IF
@@ -489,8 +513,8 @@ DO K=1, N, NB
          IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
             PRINT *, 'CHK3: checksum check failed.'
          ELSE
-            !PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
-               !MAXVAL(ABS(WORK2))
+            !!PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
+               !!MAXVAL(ABS(WORK2))
             PRINT *, 'CHK3, I, J', I, J, 'PASSED'
          END IF
       END IF
@@ -503,11 +527,11 @@ DO K=1, N, NB
       WORK1(1:JB) = WORK1(1:JB) - AR( II/NB*2 + 1, JJ:JJ+JB-1 ) 
       CALL DSYMV( UPLO, IB, ONE, A(II,JJ), LLDA, CHKVEC, 1, ZERO, WORK2, 1 )
       WORK2(1:JB) = WORK2(1:JB) - AR( II/NB*2 + 2, JJ:JJ+JB-1 ) 
-      IF( ANY(WORK1.GT.EPS) .OR. ANY(WORK2.GT.EPS) ) THEN
+      IF( ANY(ABS(WORK1).GT.EPS) .OR. ANY(ABS(WORK2).GT.EPS) ) THEN
          PRINT *, 'CHK3: checksum check failed.'
       ELSE
-         !PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
-            !MAXVAL(ABS(WORK2))
+         !!PRINT *, 'CHK3, MAXABS of WORK1, WORK2 is', MAXVAL(ABS(WORK1)), &
+            !!MAXVAL(ABS(WORK2))
          PRINT *, 'CHK3, I, J', I, J, 'PASSED'
       END IF
    END IF
@@ -515,5 +539,6 @@ END DO
    
 
 END SUBROUTINE CHK3
+
 
 END MODULE FTCHOL

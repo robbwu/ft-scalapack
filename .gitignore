@@ -1,0 +1,25 @@
+# compiled sources #
+# ################
+
+*.o
+*.class
+*.so
+*.a
+*.mod
+
+# Packages #
+# ########
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.zip
+*.tar
+
+# Temporary files #
+# ###############
+*.swp
+*.swo
+*~
